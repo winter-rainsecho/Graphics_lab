@@ -1,0 +1,28 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Rasterizer - Texture模式",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/Assignment3/Code/build/Rasterizer.exe",
+            "args": ["output.png", "texture"],
+            "cwd": "${workspaceFolder}/Assignment3/Code/build",
+            "miDebuggerPath": "C:/mingw/bin/gdb.exe",
+            "preLaunchTask": "C/C++: g++.exe 调试"
+        },
+        {
+            "name": "Rasterizer - 交互模式",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/Assignment3/Code/build/Rasterizer.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}/Assignment3/Code/build",
+            "miDebuggerPath": "C:/mingw/bin/gdb.exe",
+            "preLaunchTask": "C/C++: g++.exe 调试"
+        }
+    ]
+}
