@@ -47,6 +47,25 @@ Eigen::Matrix4f get_model_matrix(float angle)
     return translate * rotation * scale;
 }
 
+Eigen::Matrix4f get_model_matrix_fit(const Eigen::Vector3f& center, float scale, float angle)
+{
+    // center -> origin, then scale, then rotate around Y (Bonus1: fit arbitrary models)
+    angle = angle * MY_PI / 180.f;
+    Eigen::Matrix4f T = Eigen::Matrix4f::Identity();
+    T(0, 3) = -center.x();
+    T(1, 3) = -center.y();
+    T(2, 3) = -center.z();
+
+    Eigen::Matrix4f S = Eigen::Matrix4f::Identity();
+    S(0, 0) = S(1, 1) = S(2, 2) = scale;
+
+    Eigen::Matrix4f R = Eigen::Matrix4f::Identity();
+    R(0, 0) =  cos(angle); R(0, 2) =  sin(angle);
+    R(2, 0) = -sin(angle); R(2, 2) =  cos(angle);
+
+    return R * S * T;
+}
+
 Eigen::Matrix4f get_projection_matrix(float eye_fov, float aspect_ratio, float zNear, float zFar)
 {
     // 注意: 此函数输入参数zNear和zFar必须大于0，代表绝对值或距离。|
@@ -363,10 +382,20 @@ int main(int argc, const char** argv)
 
     std::string filename = "output.png";
     objl::Loader Loader;
-    std::string obj_path = "../models/spot/";
+
+    // ---- Bonus1: 通过 argv[3] 选择模型（spot/cube/rock/bunny/Crate）----
+    std::string model_key = "spot";
+    if (argc >= 4) model_key = argv[3];
+    std::string obj_file, color_tex, height_tex;
+    if      (model_key == "cube")  { obj_file = "cube.obj";   color_tex = "wall.tif";        height_tex = ""; }
+    else if (model_key == "rock")  { obj_file = "rock.obj";   color_tex = "rock.png";        height_tex = ""; }
+    else if (model_key == "bunny") { obj_file = "bunny.obj";  color_tex = "";                height_tex = ""; }
+    else if (model_key == "Crate") { obj_file = "Crate1.obj"; color_tex = "CrateImage1.JPG"; height_tex = ""; }
+    else { model_key = "spot"; obj_file = "spot_triangulated_good.obj"; color_tex = "spot_texture.png"; height_tex = "hmap.jpg"; }
+    std::string obj_path = "../models/" + model_key + "/";
 
     // Load .obj File
-    bool loadout = Loader.LoadFile("../models/spot/spot_triangulated_good.obj");
+    bool loadout = Loader.LoadFile(obj_path + obj_file);
     for(auto mesh:Loader.LoadedMeshes)
     {
         for(int i=0;i<mesh.Vertices.size();i+=3)
@@ -382,10 +411,24 @@ int main(int argc, const char** argv)
         }
     }
 
+    // ---- 计算模型包围盒，自动居中并缩放到合适大小（Bonus1: 适配任意模型）----
+    Eigen::Vector3f bmin(1e9f,1e9f,1e9f), bmax(-1e9f,-1e9f,-1e9f);
+    for (auto* t : TriangleList)
+        for (int j = 0; j < 3; ++j)
+        {
+            auto p = t->v[j];
+            bmin = bmin.cwiseMin(Eigen::Vector3f(p.x(), p.y(), p.z()));
+            bmax = bmax.cwiseMax(Eigen::Vector3f(p.x(), p.y(), p.z()));
+        }
+    Eigen::Vector3f model_center = (bmin + bmax) / 2.f;
+    float model_extent = (bmax - bmin).maxCoeff();
+    float fit_scale = (model_extent > 1e-6f) ? (3.0f / model_extent) : 1.0f;
+
     rst::rasterizer r(700, 700);
 
-    auto texture_path = "hmap.jpg";
-    r.set_texture(Texture(obj_path + texture_path));
+    std::string init_tex = (!height_tex.empty()) ? height_tex : color_tex;
+    if (!init_tex.empty())
+        r.set_texture(Texture(obj_path + init_tex));
 
     std::function<Eigen::Vector3f(fragment_shader_payload)> active_shader = phong_fragment_shader;
 
@@ -394,31 +437,31 @@ int main(int argc, const char** argv)
         command_line = true;
         filename = std::string(argv[1]);
 
-        if (argc == 3 && std::string(argv[2]) == "texture")
+        if (argc >= 3 && std::string(argv[2]) == "texture")
         {
             std::cout << "Rasterizing using the texture shader\n";
             active_shader = texture_fragment_shader;
-            texture_path = "spot_texture.png";
-            r.set_texture(Texture(obj_path + texture_path));
+            if (!color_tex.empty())
+                r.set_texture(Texture(obj_path + color_tex));
         }
-        else if (argc == 3 && std::string(argv[2]) == "normal")
+        else if (argc >= 3 && std::string(argv[2]) == "normal")
         {
             std::cout << "Rasterizing using the normal shader\n";
             active_shader = normal_fragment_shader;
         }
-        else if (argc == 3 && std::string(argv[2]) == "phong")
+        else if (argc >= 3 && std::string(argv[2]) == "phong")
         {
             std::cout << "Rasterizing using the phong shader\n";
             active_shader = phong_fragment_shader;
         }
-        else if (argc == 3 && std::string(argv[2]) == "bump")
+        else if (argc >= 3 && std::string(argv[2]) == "bump")
         {
             std::cout << "Rasterizing using the bump shader\n";
             active_shader = bump_fragment_shader;
         }
-        else if (argc == 3 && std::string(argv[2]) == "displacement")
+        else if (argc >= 3 && std::string(argv[2]) == "displacement")
         {
-            std::cout << "Rasterizing using the bump shader\n";
+            std::cout << "Rasterizing using the displacement shader\n";
             active_shader = displacement_fragment_shader;
         }
     }
@@ -434,7 +477,7 @@ int main(int argc, const char** argv)
     if (command_line)
     {
         r.clear(rst::Buffers::Color | rst::Buffers::Depth);
-        r.set_model(get_model_matrix(angle));
+        r.set_model(get_model_matrix_fit(model_center, fit_scale, angle));
         r.set_view(get_view_matrix(eye_pos));
         r.set_projection(get_projection_matrix(45.0, 1, 0.1, 50));
 
@@ -463,7 +506,7 @@ int main(int argc, const char** argv)
     {
         r.clear(rst::Buffers::Color | rst::Buffers::Depth);
 
-        r.set_model(get_model_matrix(angle));
+        r.set_model(get_model_matrix_fit(model_center, fit_scale, angle));
         r.set_view(get_view_matrix(eye_pos));
         r.set_projection(get_projection_matrix(45.0, 1, 0.1, 50));
         r.draw(TriangleList);
