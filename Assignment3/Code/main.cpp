@@ -167,6 +167,55 @@ Eigen::Vector3f texture_fragment_shader(const fragment_shader_payload& payload)
     return result_color * 255.f;
 }
 
+// Bonus2: 双线性纹理着色器 —— 与 texture_fragment_shader 唯一区别是
+// 用 getColorBilinear 代替 getColor 做纹理采样，其余 Blinn-Phong 光照完全一致。
+Eigen::Vector3f bilinear_fragment_shader(const fragment_shader_payload& payload)
+{
+    Eigen::Vector3f return_color = {0, 0, 0};
+    if (payload.texture)
+    {
+        // TODO: Get the texture value at the texture coordinates of the current fragment
+        return_color = payload.texture->getColorBilinear(payload.tex_coords.x(), payload.tex_coords.y());
+
+    }
+    Eigen::Vector3f texture_color;
+    texture_color << return_color.x(), return_color.y(), return_color.z();
+
+    Eigen::Vector3f ka = Eigen::Vector3f(0.005, 0.005, 0.005);
+    Eigen::Vector3f kd = texture_color / 255.f;
+    Eigen::Vector3f ks = Eigen::Vector3f(0.7937, 0.7937, 0.7937);
+
+    auto l1 = light{{20, 20, 20}, {500, 500, 500}};
+    auto l2 = light{{-20, 20, 0}, {500, 500, 500}};
+
+    std::vector<light> lights = {l1, l2};
+    Eigen::Vector3f amb_light_intensity{10, 10, 10};
+    Eigen::Vector3f eye_pos{0, 0, 10};
+
+    float p = 150;
+
+    Eigen::Vector3f color = texture_color;
+    Eigen::Vector3f point = payload.view_pos;
+    Eigen::Vector3f normal = payload.normal;
+
+    Eigen::Vector3f result_color = ka.cwiseProduct(amb_light_intensity);
+
+    for (auto& light : lights)
+    {
+        Eigen::Vector3f light_dir = light.position - point;
+        float r2 = light_dir.squaredNorm();
+        Eigen::Vector3f L = light_dir.normalized();
+        Eigen::Vector3f V = (eye_pos - point).normalized();
+        Eigen::Vector3f h = (L + V).normalized();
+
+        Eigen::Vector3f diffuse  = kd.cwiseProduct(light.intensity / r2) * std::max(0.0f, normal.dot(L));
+        Eigen::Vector3f specular = ks.cwiseProduct(light.intensity / r2) * std::pow(std::max(0.0f, normal.dot(h)), p);
+        result_color += diffuse + specular;
+    }
+
+    return result_color * 255.f;
+}
+
 Eigen::Vector3f phong_fragment_shader(const fragment_shader_payload& payload)
 {
     Eigen::Vector3f ka = Eigen::Vector3f(0.005, 0.005, 0.005);
@@ -394,6 +443,11 @@ int main(int argc, const char** argv)
     else { model_key = "spot"; obj_file = "spot_triangulated_good.obj"; color_tex = "spot_texture.png"; height_tex = "hmap.jpg"; }
     std::string obj_path = "../models/" + model_key + "/";
 
+    // Bonus2: 更小纹理图开关。argv[4]=="small" 时，texture 模式改用下采样纹理，
+    // 以便清楚对比最近邻 vs 双线性插值；bilinear 模式固定使用更小纹理（作业建议）。
+    std::string small_tex = "spot_texture_small.png";
+    bool use_small = (argc >= 5 && std::string(argv[4]) == "small");
+
     // Load .obj File
     bool loadout = Loader.LoadFile(obj_path + obj_file);
     for(auto mesh:Loader.LoadedMeshes)
@@ -442,7 +496,14 @@ int main(int argc, const char** argv)
             std::cout << "Rasterizing using the texture shader\n";
             active_shader = texture_fragment_shader;
             if (!color_tex.empty())
-                r.set_texture(Texture(obj_path + color_tex));
+                r.set_texture(Texture(obj_path + (use_small ? small_tex : color_tex)));
+        }
+        else if (argc >= 3 && std::string(argv[2]) == "bilinear")
+        {
+            std::cout << "Rasterizing using the bilinear texture shader (Bonus2)\n";
+            active_shader = bilinear_fragment_shader;
+            if (!color_tex.empty())
+                r.set_texture(Texture(obj_path + small_tex));
         }
         else if (argc >= 3 && std::string(argv[2]) == "normal")
         {
