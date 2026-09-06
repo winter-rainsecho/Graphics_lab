@@ -24,7 +24,7 @@
 ## Bonus 2 — 双线性纹理插值
 
 ### 完成情况
-完成 Bonus 2（5 分）：在 `Texture` 类中实现 `getColorBilinear(float u, float v)`，新增 `bilinear_fragment_shader` 调用该方法；为凸显效果，将 `spot_texture.png` 下采样到 **32×32** 生成 `spot_texture_small.png`，并提交最近邻与双线性采样结果及对比。
+完成 Bonus 2（5 分）：在 `Texture` 类中实现 `getColorBilinear(float u, float v)`，新增 `bilinear_fragment_shader` 调用该方法；为凸显效果，将 `spot_texture.png` 下采样到 **128×128** 生成 `spot_texture_small.png`，并提交最近邻与双线性采样结果及对比。
 
 ### 实现要点
 - `Code/Texture.hpp::getColorBilinear`：
@@ -39,11 +39,11 @@
 ### 对比结果
 | 采样方式 | 使用纹理 | 渲染结果 | 视觉差异 |
 |---|---|---|---|
-| 最近邻 (Nearest) | 32×32 `spot_texture_small.png` | `images/spot_texture_nearest.png` | 牛斑、嘴部、眼部出现明显块状像素，锯齿感强 |
-| 双线性 (Bilinear) | 32×32 `spot_texture_small.png` | `images/spot_texture_bilinear.png` | 颜色在纹素之间平滑过渡，块状感显著减弱 |
+| 最近邻 (Nearest) | 128×128 `spot_texture_small.png` | `images/spot_texture_nearest.png` | 牛斑、嘴部、眼部出现明显块状像素，锯齿感强 |
+| 双线性 (Bilinear) | 128×128 `spot_texture_small.png` | `images/spot_texture_bilinear.png` | 颜色在纹素之间平滑过渡，块状感显著减弱 |
 
 ### 结论
-在纹理分辨率远低于屏幕像素覆盖范围时（本例 32×32 纹理被拉伸到约 700×700 画面），**最近邻采样**会直接将单个纹素的颜色放大为屏幕上的大块像素，产生明显锯齿；**双线性插值**通过相邻四个纹素加权混合，把突变变成连续渐变，视觉质量更高。这是纹理放大（magnification）场景下最常见的反锯齿手段。
+在纹理分辨率远低于屏幕像素覆盖范围时（本例 128×128 纹理被拉伸到约 700×700 画面），**最近邻采样**会直接将单个纹素的颜色放大为屏幕上的大块像素，产生明显锯齿；**双线性插值**通过相邻四个纹素加权混合，把突变变成连续渐变，视觉质量更高。这是纹理放大（magnification）场景下最常见的反锯齿手段。
 
 ## 主要代码修改
 - `Code/main.cpp`：
@@ -60,8 +60,8 @@
 ```
 其中 `<shader>` 可选 `normal` / `phong` / `texture` / `bilinear` / `bump` / `displacement`，`<model>` 可选 `cube` / `rock` / `bunny` / `Crate` / `spot`。
 - `texture spot` 使用原始 `spot_texture.png`（1024×1024）渲染最近邻采样。
-- `texture spot small` 使用 `spot_texture_small.png`（32×32）渲染最近邻采样，用于 Bonus2 对比。
-- `bilinear spot` 使用 `spot_texture_small.png`（32×32）渲染双线性插值采样。
+- `texture spot small` 使用 `spot_texture_small.png`（128×128）渲染最近邻采样，用于 Bonus2 对比。
+- `bilinear spot` 使用 `spot_texture_small.png`（128×128）渲染双线性插值采样。
 
 如果直接执行提示缺少 DLL，请确保 MinGW 与 OpenCV bin 目录在 PATH 中：
 ```bash
